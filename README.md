@@ -1,2 +1,2 @@
 # slabTraining
-GAN application for industrial application
+GENERATIVE ADVERSARIAL NETWORKS (GAN) for industrial applications
