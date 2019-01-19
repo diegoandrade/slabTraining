@@ -9,16 +9,17 @@ import numpy as np
 import cv2
 import random
 import scipy.misc
+import time
+
 from utils import *
 
 slim = tf.contrib.slim
 
 HEIGHT, WIDTH, CHANNEL = 256, 256, 1
-BATCH_SIZE = 49
+BATCH_SIZE = 64
 EPOCH = 60000
 version = 'newSlab'
 newSlab_path = './' + version
-newDataClahe = './dataClahe'
 
 def lrelu(x, n, leak=0.2):
     return tf.maximum(x, leak * x, name=n)
@@ -59,7 +60,7 @@ def process_data():
                                     [image],
                                     batch_size = BATCH_SIZE,
                                     num_threads = 4,
-                                    capacity = 200 + 3* BATCH_SIZE,
+                                    capacity = 200 + 3*BATCH_SIZE,
                                     min_after_dequeue = 20)
     num_images = len(images)
 
@@ -202,16 +203,16 @@ def train():
     t_vars = tf.trainable_variables()
     d_vars = [var for var in t_vars if 'dis' in var.name]
     g_vars = [var for var in t_vars if 'gen' in var.name]
-    trainer_d = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(d_loss, var_list=d_vars)
-    trainer_g = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(g_loss, var_list=g_vars)
+    trainer_d = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(d_loss, var_list=d_vars)
+    trainer_g = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(g_loss, var_list=g_vars)
     # clip discriminator weights
-    d_clip = [v.assign(tf.clip_by_value(v, -0.001, 0.001)) for v in d_vars]
+    d_clip = [v.assign(tf.clip_by_value(v, -0.01, 0.01)) for v in d_vars]
 
 
     batch_size = BATCH_SIZE
     image_batch, samples_num = process_data()
 
-    batch_num = 5#int(samples_num / batch_size)
+    batch_num = int(samples_num / batch_size)
     total_batch = 0
     sess = tf.Session()
     saver = tf.train.Saver()
@@ -227,8 +228,12 @@ def train():
     print('total training sample num:%d' % samples_num)
     print('batch size: %d, batch num per epoch: %d, epoch num: %d' % (batch_size, batch_num, EPOCH))
     print('start training...')
-    text_file = open("Output.txt", "a+")
+
+    start_time = time.time()
+
     for i in range(EPOCH):
+        epoch_time = time.time()
+        text_file = open("Output.txt", "a+")
         print("Running epoch {}/{}...".format(i, EPOCH))
         for j in range(batch_num):
             print(j)
@@ -253,6 +258,7 @@ def train():
                                     feed_dict={random_input: train_noise, is_train: True})
 
             print ('train:[%d/%d],d_loss:%f,g_loss:%f' % (i, j, dLoss, gLoss))
+        print("--- EPOCH time : %s seconds ---" % (time.time() - epoch_time))
 
         # save check point every 500 epoch
         if i%100 == 0:
@@ -267,11 +273,11 @@ def train():
             imgtest = sess.run(fake_image, feed_dict={random_input: sample_noise, is_train: False})
             # imgtest = imgtest * 255.0
             # imgtest.astype(np.uint8)
-            save_images(imgtest, [7,7] ,newSlab_path + '/epoch' + str(i) + '.jpg')
+            save_images(imgtest, [8,8] ,newSlab_path + '/epoch' + str(i) + '.jpg')
 
         if i%10 == 0:
             print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
-            text_file.write("\n train:[%d] \t\td_loss:%f \t\tg_loss:%f" % (i, dLoss, gLoss))
+            text_file.write("%d \t\t%f \t\t%f \t\t%s\n" % (i, dLoss, gLoss, (time.time() - epoch_time)))
             text_file.close()
 
     #text_file.close()
@@ -305,7 +311,7 @@ def test():
 
 
 
-    save_images(imgtest, [7,7],newSlab_path + '/test1.jpg') #merge_images
+    save_images(imgtest, [8,8],newSlab_path + '/test1.jpg') #merge_images
 
     imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
 
@@ -314,31 +320,38 @@ def test():
 
 
     #save_images(imgtest, [1,1],newSlab_path + '/test1.jpg')
+
+
 def utilClahe():
+    start_time = time.time()
     current_dir = os.getcwd()
     # parent = os.path.dirname(current_dir)
     slab_dir = os.path.join(current_dir, 'data')
     images = []
     count = 0
     for each in os.listdir(slab_dir):
+        iteration_time = time.time()
         images.append(os.path.join(slab_dir,each))
         count+=1
+        print("--- iteration time : %s seconds ---" % (time.time() - iteration_time))
     print(count)
-    #Used to equalize the images currently used
-    equ=None
-    clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
+    print("--- total time : %s seconds ---" % (time.time() - start_time))
 
-    for k in range(count-1):
-        print(k)
-        img = cv2.imread(images[k+1], cv2.IMREAD_GRAYSCALE)
-        equ=cv2.normalize(img, equ, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-        cv2.imwrite((newDataClahe + '/%d_n.png') % k, equ)
-        hist = cv2.equalizeHist(img)
-        cv2.imwrite((newDataClahe + '/%d_e.png') % k, hist)
-        cl = clahe.apply(img)
-        cv2.imwrite((newDataClahe + '/%d_c.png') % k, cl)
+    #Used to equalize the images currently used
+    # equ=None
+    # clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
+    #
+    # for k in range(count-1):
+    #     print(k)
+    #     img = cv2.imread(images[k+1], cv2.IMREAD_GRAYSCALE)
+    #     equ=cv2.normalize(img, equ, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+    #     cv2.imwrite((newDataClahe + '/%d_n.png') % k, equ)
+    #     hist = cv2.equalizeHist(img)
+    #     cv2.imwrite((newDataClahe + '/%d_e.png') % k, hist)
+    #     cl = clahe.apply(img)
+    #     cv2.imwrite((newDataClahe + '/%d_c.png') % k, cl)
 
 if __name__ == "__main__":
-    #train()
-    #test()
-    utilClahe()
+    train()
+    test()
+    #utilClahe()
