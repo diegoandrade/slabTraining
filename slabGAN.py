@@ -206,7 +206,7 @@ def train():
     trainer_d = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(d_loss, var_list=d_vars)
     trainer_g = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(g_loss, var_list=g_vars)
     # clip discriminator weights
-    d_clip = [v.assign(tf.clip_by_value(v, -0.01, 0.01)) for v in d_vars]
+    d_clip = [v.assign(tf.clip_by_value(v, -0.001, 0.001)) for v in d_vars]
 
 
     batch_size = BATCH_SIZE
@@ -215,6 +215,7 @@ def train():
     batch_num = int(samples_num / batch_size)
     total_batch = 0
     sess = tf.Session()
+
     saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
@@ -258,7 +259,8 @@ def train():
                                     feed_dict={random_input: train_noise, is_train: True})
 
             print ('train:[%d/%d],d_loss:%f,g_loss:%f' % (i, j, dLoss, gLoss))
-        print("--- EPOCH time : %s seconds ---" % (time.time() - epoch_time))
+        print("--- EPOCH time : %s seconds ---" % (start_time - epoch_time))
+
 
         # save check point every 500 epoch
         if i%100 == 0:
@@ -277,8 +279,13 @@ def train():
 
         if i%10 == 0:
             print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
-            text_file.write("%d \t\t%f \t\t%f \t\t%s\n" % (i, dLoss, gLoss, (time.time() - epoch_time)))
+            text_file.write("%d \t\t%f \t\t%f \t\t%s\n" % (i, dLoss, gLoss, (start_time - epoch_time)))
             text_file.close()
+
+        if i%EPOCH/10==0:
+            print("--- total time : %s seconds ---" % (time.time() - start_time))
+
+
 
     #text_file.close()
     coord.request_stop()
