@@ -77,7 +77,7 @@ def generator(input, random_dim, is_train, reuse=False):
     with tf.variable_scope('gen') as scope:
         if reuse:
             scope.reuse_variables()
-        with tf.device('/gpu:0'):
+        with tf.device('/gpu:1'):
             w1 = tf.get_variable('w1', shape=[random_dim, s4 * s4 * c4], dtype=tf.float32,
                                  initializer=tf.truncated_normal_initializer(stddev=0.02))
             b1 = tf.get_variable('b1', shape=[c4 * s4 * s4], dtype=tf.float32,
@@ -135,7 +135,7 @@ def discriminator(input, is_train, reuse=False):
     with tf.variable_scope('dis') as scope:
         if reuse:
             scope.reuse_variables()
-        with tf.device('/gpu:1'):
+        with tf.device('/gpu:0'):
         #Convolution, activation, bias, repeat!
             conv1 = tf.layers.conv2d(input, c2, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                      kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
@@ -247,21 +247,22 @@ def train():
             train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
             for k in range(d_iters):
                 print(k)
+                #with tf.device('/gpu:1'):
                 train_image = sess.run(image_batch)
                 #wgan clip weights
-                with tf.device('/gpu:0'):
-                    sess.run(d_clip)
+                #with tf.device('/gpu:0'):
+                sess.run(d_clip)
 
                 # Update the discriminator
-                with tf.device('/gpu:1'):
-                    _, dLoss = sess.run([trainer_d, d_loss],
+                #with tf.device('/gpu:1'):
+                _, dLoss = sess.run([trainer_d, d_loss],
                                     feed_dict={random_input: train_noise, real_image: train_image, is_train: True})
 
             # Update the generator
             for k in range(g_iters):
-                with tf.device('/gpu:2'):
+                #with tf.device('/gpu:2'):
                 # train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
-                    _, gLoss = sess.run([trainer_g, g_loss],
+                _, gLoss = sess.run([trainer_g, g_loss],
                                     feed_dict={random_input: train_noise, is_train: True})
 
             print ('train:[%d/%d],d_loss:%f,g_loss:%f' % (i, j, dLoss, gLoss))
