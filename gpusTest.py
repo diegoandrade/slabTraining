@@ -32,8 +32,9 @@ Results on 8 cores with 2 GTX-980:
  * Multi GPU computation time: 0:00:07.131701
 '''
 # Create random large matrix
-A = np.random.rand(10000, 10000).astype('float32')
-B = np.random.rand(10000, 10000).astype('float32')
+A = np.random.rand(1000, 1000).astype('float32')
+B = np.random.rand(1000, 1000).astype('float32')
+C = np.random.rand(1000, 1000).astype('float32')
 
 # Create a graph to store results
 c1 = []
@@ -49,11 +50,13 @@ def matpow(M, n):
 Single GPU computing
 '''
 with tf.device('/gpu:0'):
-    a = tf.placeholder(tf.float32, [10000, 10000])
-    b = tf.placeholder(tf.float32, [10000, 10000])
+    a = tf.placeholder(tf.float32, [1000, 1000])
+    b = tf.placeholder(tf.float32, [1000, 1000])
+    c = tf.placeholder(tf.float32, [1000, 1000])
     # Compute A^n and B^n and store results in c1
     c1.append(matpow(a, n))
     c1.append(matpow(b, n))
+    c1.append(matpow(c, n))
 
 with tf.device('/cpu:0'):
   sum = tf.add_n(c1) #Addition of all elements in c1, i.e. A^n + B^n
@@ -61,7 +64,7 @@ with tf.device('/cpu:0'):
 t1_1 = datetime.datetime.now()
 with tf.Session(config=tf.ConfigProto(log_device_placement=log_device_placement)) as sess:
     # Run the op.
-    sess.run(sum, {a:A, b:B})
+    sess.run(sum, {a:A, b:B,c:C})
 t2_1 = datetime.datetime.now()
 
 
@@ -71,14 +74,20 @@ Multi GPU computing
 # GPU:0 computes A^n
 with tf.device('/gpu:0'):
     # Compute A^n and store result in c2
-    a = tf.placeholder(tf.float32, [10000, 10000])
+    a = tf.placeholder(tf.float32, [1000, 1000])
     c2.append(matpow(a, n))
 
 # GPU:1 computes B^n
 with tf.device('/gpu:1'):
     # Compute B^n and store result in c2
-    b = tf.placeholder(tf.float32, [10000, 10000])
+    b = tf.placeholder(tf.float32, [1000, 1000])
     c2.append(matpow(b, n))
+
+# GPU:1 computes B^n
+with tf.device('/gpu:2'):
+    # Compute C^n and store result in c2
+    c = tf.placeholder(tf.float32, [1000, 1000])
+    c2.append(matpow(c, n))
 
 with tf.device('/cpu:0'):
   sum = tf.add_n(c2) #Addition of all elements in c2, i.e. A^n + B^n
@@ -86,7 +95,7 @@ with tf.device('/cpu:0'):
 t1_2 = datetime.datetime.now()
 with tf.Session(config=tf.ConfigProto(log_device_placement=log_device_placement)) as sess:
     # Run the op.
-    sess.run(sum, {a:A, b:B})
+    sess.run(sum, {a:A, b:B,c:C})
 t2_2 = datetime.datetime.now()
 
 
