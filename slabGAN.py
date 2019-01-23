@@ -20,6 +20,7 @@ BATCH_SIZE = 64
 EPOCH = 60000
 version = 'newSlab'
 newSlab_path = './' + version
+newDataClahe = './dataClahe'
 
 def lrelu(x, n, leak=0.2):
     return tf.maximum(x, leak * x, name=n)
@@ -206,7 +207,7 @@ def train():
     trainer_d = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(d_loss, var_list=d_vars)
     trainer_g = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(g_loss, var_list=g_vars)
     # clip discriminator weights
-    d_clip = [v.assign(tf.clip_by_value(v, -0.001, 0.001)) for v in d_vars]
+    d_clip = [v.assign(tf.clip_by_value(v, -0.005, 0.005)) for v in d_vars]
 
 
     batch_size = BATCH_SIZE
@@ -246,20 +247,23 @@ def train():
                 print(k)
                 train_image = sess.run(image_batch)
                 #wgan clip weights
-                sess.run(d_clip)
+                with tf.device('/device:GPU:1'):
+                    sess.run(d_clip)
 
                 # Update the discriminator
-                _, dLoss = sess.run([trainer_d, d_loss],
+                with tf.device('/device:GPU:0'):
+                    _, dLoss = sess.run([trainer_d, d_loss],
                                     feed_dict={random_input: train_noise, real_image: train_image, is_train: True})
 
             # Update the generator
             for k in range(g_iters):
+                with tf.device('/device:GPU:2'):
                 # train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
-                _, gLoss = sess.run([trainer_g, g_loss],
+                    _, gLoss = sess.run([trainer_g, g_loss],
                                     feed_dict={random_input: train_noise, is_train: True})
 
             print ('train:[%d/%d],d_loss:%f,g_loss:%f' % (i, j, dLoss, gLoss))
-        print("--- EPOCH time : %s seconds ---" % (start_time - epoch_time))
+        print("--- EPOCH time : %s seconds ---" % (time.time() - epoch_time))
 
 
         # save check point every 500 epoch
@@ -276,14 +280,12 @@ def train():
             # imgtest = imgtest * 255.0
             # imgtest.astype(np.uint8)
             save_images(imgtest, [8,8] ,newSlab_path + '/epoch' + str(i) + '.jpg')
-
         if i%10 == 0:
             print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
-            text_file.write("%d \t\t%f \t\t%f \t\t%s\n" % (i, dLoss, gLoss, (start_time - epoch_time)))
+            print("--- total time : %s seconds ---" % (time.time() - start_time))
+            text_file.write("%d \t\t%f \t\t%f \t\t%s \t\t%s \n" % (i, dLoss, gLoss, (time.time() - epoch_time),(time.time() - start_time)))
             text_file.close()
 
-        if i%EPOCH/10==0:
-            print("--- total time : %s seconds ---" % (time.time() - start_time))
 
 
 
@@ -344,21 +346,21 @@ def utilClahe():
     print(count)
     print("--- total time : %s seconds ---" % (time.time() - start_time))
 
-    #Used to equalize the images currently used
-    # equ=None
-    # clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
-    #
-    # for k in range(count-1):
-    #     print(k)
-    #     img = cv2.imread(images[k+1], cv2.IMREAD_GRAYSCALE)
-    #     equ=cv2.normalize(img, equ, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-    #     cv2.imwrite((newDataClahe + '/%d_n.png') % k, equ)
-    #     hist = cv2.equalizeHist(img)
-    #     cv2.imwrite((newDataClahe + '/%d_e.png') % k, hist)
-    #     cl = clahe.apply(img)
-    #     cv2.imwrite((newDataClahe + '/%d_c.png') % k, cl)
+##Used to equalize the images currently used
+    equ=None
+    clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
+
+    for k in range(count-1):
+        print(k)
+        img = cv2.imread(images[k+1], cv2.IMREAD_GRAYSCALE)
+        equ=cv2.normalize(img, equ, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+        cv2.imwrite((newDataClahe + '/%d_n.png') % k, equ)
+        hist = cv2.equalizeHist(img)
+        cv2.imwrite((newDataClahe + '/%d_e.png') % k, hist)
+        cl = clahe.apply(img)
+        cv2.imwrite((newDataClahe + '/%d_c.png') % k, cl)
 
 if __name__ == "__main__":
     train()
-    test()
+    #test()
     #utilClahe()
