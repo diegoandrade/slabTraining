@@ -15,8 +15,8 @@ from utils import *
 
 slim = tf.contrib.slim
 
-HEIGHT, WIDTH, CHANNEL = 64, 64, 1
-BATCH_SIZE = 36
+HEIGHT, WIDTH, CHANNEL = 256, 256, 1
+BATCH_SIZE = 64
 EPOCH = 60000
 version = 'newSlab'
 newSlab_path = './' + version
@@ -70,115 +70,113 @@ def process_data():
 
     return iamges_batch, num_images
 
-
 def generator(input, random_dim, is_train, reuse=False):
     c4, c8, c16, c32, c64, c128 = 512, 256, 128, 64, 32, 16 # channel num
     s4 = 4
     output_dim = CHANNEL  # RGB image
     with tf.variable_scope('gen') as scope:
-        if reuse:
-            scope.reuse_variables()
-        w1 = tf.get_variable('w1', shape=[random_dim, s4 * s4 * c4], dtype=tf.float32,
-                             initializer=tf.truncated_normal_initializer(stddev=0.02))
-        b1 = tf.get_variable('b1', shape=[c4 * s4 * s4], dtype=tf.float32,
-                             initializer=tf.constant_initializer(0.0))
-        flat_conv1 = tf.add(tf.matmul(input, w1), b1, name='flat_conv1')
-         #Convolution, bias, activation, repeat!
-        conv1 = tf.reshape(flat_conv1, shape=[-1, s4, s4, c4], name='conv1')
-        bn1 = tf.contrib.layers.batch_norm(conv1, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn1')
-        act1 = tf.nn.relu(bn1, name='act1')
-        # 8*8*256
-        #Convolution, bias, activation, repeat!
-        conv2 = tf.layers.conv2d_transpose(act1, c8, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                           kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                           name='conv2')
-        bn2 = tf.contrib.layers.batch_norm(conv2, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn2')
-        act2 = tf.nn.relu(bn2, name='act2')
-        # 16*16*128
-        conv3 = tf.layers.conv2d_transpose(act2, c16, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                           kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                           name='conv3')
-        bn3 = tf.contrib.layers.batch_norm(conv3, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn3')
-        act3 = tf.nn.relu(bn3, name='act3')
-        # 32*32*64
-        conv4 = tf.layers.conv2d_transpose(act3, c32, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                           kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                           name='conv4')
-        bn4 = tf.contrib.layers.batch_norm(conv4, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn4')
-        act4 = tf.nn.relu(bn4, name='act4')
-        # 64*64*32
-        conv5 = tf.layers.conv2d_transpose(act4, output_dim, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                           kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                           name='conv5')
-        #bn5 = tf.contrib.layers.batch_norm(conv5, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn5')
-        act5 = tf.nn.tanh(conv5, name='act5')
+            if reuse:
+               scope.reuse_variables()
+        #with tf.device('/gpu:1'):
+            w1 = tf.get_variable('w1', shape=[random_dim, s4 * s4 * c4], dtype=tf.float32,
+                                 initializer=tf.truncated_normal_initializer(stddev=0.02))
+            b1 = tf.get_variable('b1', shape=[c4 * s4 * s4], dtype=tf.float32,
+                                 initializer=tf.constant_initializer(0.0))
+            flat_conv1 = tf.add(tf.matmul(input, w1), b1, name='flat_conv1')
+             #Convolution, bias, activation, repeat!
+            conv1 = tf.reshape(flat_conv1, shape=[-1, s4, s4, c4], name='conv1')
+            bn1 = tf.contrib.layers.batch_norm(conv1, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn1')
+            act1 = tf.nn.relu(bn1, name='act1')
+            # 8*8*256
+            #Convolution, bias, activation, repeat!
+            conv2 = tf.layers.conv2d_transpose(act1, c8, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                               kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                               name='conv2')
+            bn2 = tf.contrib.layers.batch_norm(conv2, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn2')
+            act2 = tf.nn.relu(bn2, name='act2')
+            # 16*16*128
+            conv3 = tf.layers.conv2d_transpose(act2, c16, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                               kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                               name='conv3')
+            bn3 = tf.contrib.layers.batch_norm(conv3, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn3')
+            act3 = tf.nn.relu(bn3, name='act3')
+            # 32*32*64
+            conv4 = tf.layers.conv2d_transpose(act3, c32, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                               kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                               name='conv4')
+            bn4 = tf.contrib.layers.batch_norm(conv4, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn4')
+            act4 = tf.nn.relu(bn4, name='act4')
+            # 64*64*32
+            conv5 = tf.layers.conv2d_transpose(act4, c64, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                               kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                               name='conv5')
+            bn5 = tf.contrib.layers.batch_norm(conv5, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn5')
+            act5 = tf.nn.relu(bn5, name='act5')
 
-        # #128*128*16
-        # conv6 = tf.layers.conv2d_transpose(act5, c128, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-        #                                    kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-        #                                    name='conv6')
-        # bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
-        # act6 = tf.nn.relu(bn6, name='act6')
-        #
-        # #256*256*3
-        # conv7 = tf.layers.conv2d_transpose(act6, output_dim, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-        #                                    kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-        #                                    name='conv7')
-        # #bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
-        # act7 = tf.nn.tanh(conv7, name='act7')
+            #128*128*16
+            conv6 = tf.layers.conv2d_transpose(act5, c128, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                               kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                               name='conv6')
+            bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
+            act6 = tf.nn.relu(bn6, name='act6')
 
-        return act5 #act7
+            #256*256*3
+            conv7 = tf.layers.conv2d_transpose(act6, output_dim, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                               kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                               name='conv7')
+            #bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
+            act7 = tf.nn.tanh(conv7, name='act7')
+
+    return act7
 
 
 def discriminator(input, is_train, reuse=False):
     c2, c4, c8, c16 = 64, 128, 256, 512  # channel num: 64, 128, 256, 512
     with tf.variable_scope('dis') as scope:
-        if reuse:
-            scope.reuse_variables()
-
+            if reuse:
+                scope.reuse_variables()
+        #with tf.device('/gpu:0'):
         #Convolution, activation, bias, repeat!
-        conv1 = tf.layers.conv2d(input, c2, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                 name='conv1')
-        bn1 = tf.contrib.layers.batch_norm(conv1, is_training = is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope = 'bn1')
-        act1 = lrelu(conv1, n='act1')
-         #Convolution, activation, bias, repeat!
-        conv2 = tf.layers.conv2d(act1, c4, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                 name='conv2')
-        bn2 = tf.contrib.layers.batch_norm(conv2, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn2')
-        act2 = lrelu(bn2, n='act2')
-        #Convolution, activation, bias, repeat!
-        conv3 = tf.layers.conv2d(act2, c8, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                 name='conv3')
-        bn3 = tf.contrib.layers.batch_norm(conv3, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn3')
-        act3 = lrelu(bn3, n='act3')
-         #Convolution, activation, bias, repeat!
-        conv4 = tf.layers.conv2d(act3, c16, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-                                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-                                 name='conv4')
-        bn4 = tf.contrib.layers.batch_norm(conv4, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn4')
-        act4 = lrelu(bn4, n='act4')
+            conv1 = tf.layers.conv2d(input, c2, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                     kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                     name='conv1')
+            bn1 = tf.contrib.layers.batch_norm(conv1, is_training = is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope = 'bn1')
+            act1 = lrelu(conv1, n='act1')
+             #Convolution, activation, bias, repeat!
+            conv2 = tf.layers.conv2d(act1, c4, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                     kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                     name='conv2')
+            bn2 = tf.contrib.layers.batch_norm(conv2, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn2')
+            act2 = lrelu(bn2, n='act2')
+            #Convolution, activation, bias, repeat!
+            conv3 = tf.layers.conv2d(act2, c8, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                     kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                     name='conv3')
+            bn3 = tf.contrib.layers.batch_norm(conv3, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn3')
+            act3 = lrelu(bn3, n='act3')
+             #Convolution, activation, bias, repeat!
+            conv4 = tf.layers.conv2d(act3, c16, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+                                     kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
+                                     name='conv4')
+            bn4 = tf.contrib.layers.batch_norm(conv4, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn4')
+            act4 = lrelu(bn4, n='act4')
 
-        # start from act4
-        dim = int(np.prod(act4.get_shape()[1:]))
-        print("dim: %d" % dim)
-        fc1 = tf.reshape(act4, shape=[-1, dim], name='fc1')
-
-
-        w2 = tf.get_variable('w2', shape=[fc1.shape[-1], 1], dtype=tf.float32,
-                             initializer=tf.truncated_normal_initializer(stddev=0.02))
-        b2 = tf.get_variable('b2', shape=[1], dtype=tf.float32,
-                             initializer=tf.constant_initializer(0.0))
-
-        # wgan just get rid of the sigmoid
-        logits = tf.add(tf.matmul(fc1, w2), b2, name='logits')
-        # dcgan
-        #acted_out = tf.nn.sigmoid(logits)
-        return logits #, acted_out
+            # start from act4
+            dim = int(np.prod(act4.get_shape()[1:]))
+            print("dim: %d" % dim)
+            fc1 = tf.reshape(act4, shape=[-1, dim], name='fc1')
 
 
+            w2 = tf.get_variable('w2', shape=[fc1.shape[-1], 1], dtype=tf.float32,
+                                 initializer=tf.truncated_normal_initializer(stddev=0.02))
+            b2 = tf.get_variable('b2', shape=[1], dtype=tf.float32,
+                                 initializer=tf.constant_initializer(0.0))
+
+            # wgan just get rid of the sigmoid
+            logits = tf.add(tf.matmul(fc1, w2), b2, name='logits')
+            # dcgan
+            acted_out = tf.nn.sigmoid(logits)
+    return logits #, acted_out
 
 
 def train():
@@ -284,7 +282,7 @@ def train():
             imgtest = sess.run(fake_image, feed_dict={random_input: sample_noise, is_train: False})
             # imgtest = imgtest * 255.0
             # imgtest.astype(np.uint8)
-            save_images(imgtest, [6,6] ,newSlab_path + '/epoch' + str(i) + '.jpg')
+            save_images(imgtest, [8,8] ,newSlab_path + '/epoch' + str(i) + '.jpg')
         if i%10 == 0:
             print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
             print("--- total time : %s seconds ---" % (time.time() - start_time))
@@ -319,15 +317,15 @@ def test():
     ckpt = tf.train.latest_checkpoint('./model/' + version)
     saver.restore(sess, ckpt)
 
-    batch_size = BATCH_SIZE
+    batch_size = 1000 #BATCH_SIZE
     sample_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
     imgtest = sess.run(fake_image, feed_dict={random_input: sample_noise, is_train: False})
 
 
 
-    save_images(imgtest, [8,8],newSlab_path + '/test1.jpg') #merge_images
-
-    imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
+    # save_images(imgtest, [8,8],newSlab_path + '/test1.jpg') #merge_images
+    #
+    # imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
 
     for k in range(batch_size):
         save_images_solo(imgtest[k], (newSlab_path + '/sol/longitudinalCrack%d.jpg') % k)
