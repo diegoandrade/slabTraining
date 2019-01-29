@@ -206,10 +206,10 @@ def train():
     t_vars = tf.trainable_variables()
     d_vars = [var for var in t_vars if 'dis' in var.name]
     g_vars = [var for var in t_vars if 'gen' in var.name]
-    trainer_d = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(d_loss, var_list=d_vars)
-    trainer_g = tf.train.RMSPropOptimizer(learning_rate=2e-4).minimize(g_loss, var_list=g_vars)
+    trainer_d = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(d_loss, var_list=d_vars)
+    trainer_g = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(g_loss, var_list=g_vars)
     # clip discriminator weights
-    d_clip = [v.assign(tf.clip_by_value(v, -0.005, 0.005)) for v in d_vars]
+    d_clip = [v.assign(tf.clip_by_value(v, -0.01, 0.01)) for v in d_vars]
 
 
     batch_size = BATCH_SIZE
@@ -289,7 +289,6 @@ def train():
             text_file.write("%d \t\t%f \t\t%f \t\t%s \t\t%s \n" % (i, dLoss, gLoss, (time.time() - epoch_time),(time.time() - start_time)))
             text_file.close()
 
-        termGraphCall(i,EPOCH)
 
 
 
@@ -353,11 +352,9 @@ def utilClahe():
 ##Used to equalize the images currently used
     equ=None
     clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
-    #maxIter = 500
+
     for k in range(count-1):
         print(k)
-        time.sleep(0.5)
-        termGraphCall(k,maxIter)
         img = cv2.imread(images[k+1], cv2.IMREAD_GRAYSCALE)
         equ=cv2.normalize(img, equ, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
         cv2.imwrite((newDataClahe + '/%d_n.png') % k, equ)
@@ -365,15 +362,6 @@ def utilClahe():
         cv2.imwrite((newDataClahe + '/%d_e.png') % k, hist)
         cl = clahe.apply(img)
         cv2.imwrite((newDataClahe + '/%d_c.png') % k, cl)
-
-
-def termGraphCall(currentIter,maxIter):
-    text_file = open("iterationMeter.dat","r+")
-    text_file.write("# This file manages the time of execution termgraph\n")
-    text_file.write("@ Current Iteration,Total Iterations\n")
-    text_file.write("2018\t\t%d \t\t%d \n" % (currentIter,maxIter))
-    text_file.close()
-
 
 if __name__ == "__main__":
     train()
