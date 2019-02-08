@@ -3,21 +3,35 @@
 
 # generate new kinds of slabs
 
+from __future__ import absolute_import, division, print_function
+
 import os
 import tensorflow as tf
 import numpy as np
 import cv2
 import random
 import scipy.misc
-import time
-
 from utils import *
+import time
+from fidi import *
+
+import imageio
+
+
+
+import glob
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+
+
+
 
 slim = tf.contrib.slim
 
+
 HEIGHT, WIDTH, CHANNEL = 64, 64, 1
-BATCH_SIZE = 36
-EPOCH = 60000
+BATCH_SIZE = 10
+EPOCH = 50000
 version = 'newSlab'
 newSlab_path = './' + version
 newDataClahe = './dataClahe'
@@ -33,46 +47,45 @@ def process_data():
     for each in os.listdir(slab_dir):
         images.append(os.path.join(slab_dir,each))
     # print images
-    #with tf.device('/CPU:0'):
-        all_images = tf.convert_to_tensor(images, dtype = tf.string)
+    all_images = tf.convert_to_tensor(images, dtype = tf.string)
 
-        images_queue = tf.train.slice_input_producer(
+    images_queue = tf.train.slice_input_producer(
                                         [all_images])
-        content = tf.read_file(images_queue[0])
 
-        image = tf.image.decode_jpeg(content, channels = CHANNEL)
+    content = tf.read_file(images_queue[0])
+    image = tf.image.decode_jpeg(content, channels = CHANNEL)
     # sess1 = tf.Session()
     # print sess1.run(image)
-        image = tf.image.random_flip_left_right(image) ## why am i doing this here ?? dfa
-        image = tf.image.random_brightness(image, max_delta = 0.1)
-        image = tf.image.random_contrast(image, lower = 0.9, upper = 1.1)
+    image = tf.image.random_flip_left_right(image) ## why am i doing this here ?? dfa
+    image = tf.image.random_brightness(image, max_delta = 0.1)
+    image = tf.image.random_contrast(image, lower = 0.9, upper = 1.1)
     # noise = tf.Variable(tf.truncated_normal(shape = [HEIGHT,WIDTH,CHANNEL], dtype = tf.float32, stddev = 1e-3, name = 'noise'))
     # print image.get_shape()
-        size = [HEIGHT, WIDTH]
-        image = tf.image.resize_images(image, size)
-        image.set_shape([HEIGHT,WIDTH,CHANNEL])
+    size = [HEIGHT, WIDTH]
+    image = tf.image.resize_images(image, size)
+    image.set_shape([HEIGHT,WIDTH,CHANNEL])
     # image = image + noise
     # image = tf.transpose(image, perm=[2, 0, 1])
     # print image.get_shape()
 
-        image = tf.cast(image, tf.float32)
-        image = image / 255.0
+    image = tf.cast(image, tf.float32)
+    image = image / 255.0
 
-        iamges_batch = tf.train.shuffle_batch(
+    images_batch = tf.train.shuffle_batch(
                                     [image],
                                     batch_size = BATCH_SIZE,
                                     num_threads = 4,
                                     capacity = 200 + 3*BATCH_SIZE,
                                     min_after_dequeue = 20)
+
     num_images = len(images)
 
-    ##print(num_images)
+    print(num_images)
 
-    return iamges_batch, num_images
-
+    return images_batch, num_images
 
 def generator(input, random_dim, is_train, reuse=False):
-    c4, c8, c16, c32, c64, c128 = 512, 256, 128, 64, 32, 16 # channel num
+    c4, c8, c16, c32, c64 = 512, 256, 128, 64, 32 # channel num
     s4 = 4
     output_dim = CHANNEL  # RGB image
     with tf.variable_scope('gen') as scope:
@@ -113,21 +126,13 @@ def generator(input, random_dim, is_train, reuse=False):
         #bn5 = tf.contrib.layers.batch_norm(conv5, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn5')
         act5 = tf.nn.tanh(conv5, name='act5')
 
-        # #128*128*16
-        # conv6 = tf.layers.conv2d_transpose(act5, c128, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
+        # #128*128*3
+        # conv6 = tf.layers.conv2d_transpose(act5, output_dim, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
         #                                    kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
         #                                    name='conv6')
-        # bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
-        # act6 = tf.nn.relu(bn6, name='act6')
-        #
-        # #256*256*3
-        # conv7 = tf.layers.conv2d_transpose(act6, output_dim, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
-        #                                    kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
-        #                                    name='conv7')
-        # #bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
-        # act7 = tf.nn.tanh(conv7, name='act7')
-
-        return act5 #act7
+        # # bn6 = tf.contrib.layers.batch_norm(conv6, is_training=is_train, epsilon=1e-5, decay = 0.9,  updates_collections=None, scope='bn6')
+        # act6 = tf.nn.tanh(conv6, name='act6')
+        return act5
 
 
 def discriminator(input, is_train, reuse=False):
@@ -179,8 +184,6 @@ def discriminator(input, is_train, reuse=False):
         return logits #, acted_out
 
 
-
-
 def train():
     random_dim = 100
 
@@ -218,28 +221,32 @@ def train():
     image_batch, samples_num = process_data()
 
     batch_num = int(samples_num / batch_size)
-    total_batch = 0
+    #total_batch = 0
     sess = tf.Session()
-
     saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
+
     # continue training
     save_path = saver.save(sess, "/tmp/model.ckpt")
     ckpt = tf.train.latest_checkpoint('./model/' + version)
-    saver.restore(sess, save_path)
+    saver.restore(sess, ckpt)
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
     print('total training sample num:%d' % samples_num)
     print('batch size: %d, batch num per epoch: %d, epoch num: %d' % (batch_size, batch_num, EPOCH))
     print('start training...')
-
     start_time = time.time()
+
+    passDLoss = -1000
+    passGloss = 1000
 
     for i in range(EPOCH):
         epoch_time = time.time()
         text_file = open("Output.txt", "a+")
+        text_file_p = open("Performance.txt", "a+")
+
         print("Running epoch {}/{}...".format(i, EPOCH))
         for j in range(batch_num):
             print(j)
@@ -249,34 +256,41 @@ def train():
             train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
             for k in range(d_iters):
                 print(k)
-                #with tf.device('/gpu:1'):
                 train_image = sess.run(image_batch)
                 #wgan clip weights
-                #with tf.device('/gpu:0'):
                 sess.run(d_clip)
 
                 # Update the discriminator
-                #with tf.device('/gpu:1'):
                 _, dLoss = sess.run([trainer_d, d_loss],
                                     feed_dict={random_input: train_noise, real_image: train_image, is_train: True})
 
             # Update the generator
             for k in range(g_iters):
-                #with tf.device('/gpu:2'):
                 # train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
                 _, gLoss = sess.run([trainer_g, g_loss],
                                     feed_dict={random_input: train_noise, is_train: True})
 
             print ('train:[%d/%d],d_loss:%f,g_loss:%f' % (i, j, dLoss, gLoss))
-        print("--- EPOCH time : %s seconds ---" % (time.time() - epoch_time))
 
+
+        #save check point in the best trainig point
+        #if (dLoss > passDLoss) and ( dLoss< 0 ) and (gLoss < passGloss) and ( gLoss> 0 ):
+        if (gLoss < passGloss) and ( gLoss> 0 ):
+            saver.save(sess, './model/' +version + '/' + str(i))
+            passDLoss = dLoss
+            passGloss = gLoss
+            print('g_loss:%f d_loss:%f @iteration:%d' % (dLoss,gLoss,i))
+            text_file_p.write("%d \t\t%f \t\t%f \n" % (i, dLoss, gLoss))
+            text_file_p.close()
 
         # save check point every 500 epoch
         if i%100 == 0:
             if not os.path.exists('./model/' + version):
                 os.makedirs('./model/' + version)
             saver.save(sess, './model/' +version + '/' + str(i))
-        if i%250 == 0:
+
+
+        if i%100 == 0:
             # save images
             if not os.path.exists(newSlab_path):
                 os.makedirs(newSlab_path)
@@ -284,15 +298,13 @@ def train():
             imgtest = sess.run(fake_image, feed_dict={random_input: sample_noise, is_train: False})
             # imgtest = imgtest * 255.0
             # imgtest.astype(np.uint8)
-            save_images(imgtest, [6,6] ,newSlab_path + '/epoch' + str(i) + '.jpg')
+            save_images(imgtest, [8,8] ,newSlab_path + '/epoch' + str(i) + '.jpg')
+
         if i%10 == 0:
             print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
             print("--- total time : %s seconds ---" % (time.time() - start_time))
             text_file.write("%d \t\t%f \t\t%f \t\t%s \t\t%s \n" % (i, dLoss, gLoss, (time.time() - epoch_time),(time.time() - start_time)))
             text_file.close()
-
-
-
 
     #text_file.close()
     coord.request_stop()
@@ -325,33 +337,26 @@ def test():
 
 
 
-    save_images(imgtest, [8,8],newSlab_path + '/test1.jpg') #merge_images
-
-    imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
+    # save_images(imgtest, [7,7],newSlab_path + '/test1.jpg') #merge_images
+    #
+    # imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
 
     for k in range(batch_size):
         save_images_solo(imgtest[k], (newSlab_path + '/sol/longitudinalCrack%d.jpg') % k)
 
 
     #save_images(imgtest, [1,1],newSlab_path + '/test1.jpg')
-
-
 def utilClahe():
-    start_time = time.time()
     current_dir = os.getcwd()
     # parent = os.path.dirname(current_dir)
     slab_dir = os.path.join(current_dir, 'data')
     images = []
     count = 0
     for each in os.listdir(slab_dir):
-        iteration_time = time.time()
         images.append(os.path.join(slab_dir,each))
         count+=1
-        print("--- iteration time : %s seconds ---" % (time.time() - iteration_time))
     print(count)
-    print("--- total time : %s seconds ---" % (time.time() - start_time))
-
-##Used to equalize the images currently used
+    #Used to equalize the images currently used
     equ=None
     clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
 
@@ -365,7 +370,63 @@ def utilClahe():
         cl = clahe.apply(img)
         cv2.imwrite((newDataClahe + '/%d_c.png') % k, cl)
 
+
+def fidDistance():
+    # equ1=None
+    # equ2=None
+    # current_dir = os.getcwd()
+    # # parent = os.path.dirname(current_dir)
+    # slab_dir = os.path.join(current_dir, 'FID')
+    # img1 = cv2.imread("false.png", cv2.IMREAD_GRAYSCALE)
+    # img2 = cv2.imread("real.png")
+    # equ1=cv2.normalize(img1, equ2, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+    # equ2=cv2.normalize(img2, equ1, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+    # im1 = np.ndarray(img1)
+    # im2 = np.ndarray(img2)
+    #
+    # im3 = im1.reshape([1, 3, 64, 64])
+    # im4 = im2.reshape([1, 3, 64, 64])
+    #
+    # # im1 = imageio.imread("FID/false.png")
+    # # im2 = imageio.imread("FID/false.png")
+    # # print(im2.shape)
+    #
+    #
+    # # im.shape
+    # # print type(im)
+    # get_fid(im1, im2)
+
+    current_dir = os.getcwd()
+
+    # Paths
+    image_path = os.path.join(current_dir, 'FID')
+    stats_path = os.path.join(current_dir+'fid_stats_cifar10.npz') # training set statistics
+    inception_path = fidi.check_or_download_inception(current_dir) # download inception network
+
+    # loads all images into memory (this might require a lot of RAM!)
+    image_list = glob.glob(os.path.join(datapath, '*.png'))
+    images = np.array([imread(str(fn)).astype(np.float32) for fn in files])
+
+    # load precalculated training set statistics
+    f = np.load(path)
+    mu_real, sigma_real = f['mu'][:], f['sigma'][:]
+    f.close()
+
+    fidi.create_inception_graph(inception_path)  # load the graph into the current TF graph
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        mu_gen, sigma_gen = fidi.calculate_activation_statistics(images, sess, batch_size=100)
+
+    fid_value = fidi.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
+    print("FID: %s" % fid_value)
+
+
+
+
+
 if __name__ == "__main__":
     #train()
-    test()
+    #test()
     #utilClahe()
+    #restoreChkPoint()
+    fidDistance()
