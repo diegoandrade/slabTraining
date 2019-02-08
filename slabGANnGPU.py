@@ -9,15 +9,15 @@ import numpy as np
 import cv2
 import random
 import scipy.misc
-import time
-
 from utils import *
+import time
 
 slim = tf.contrib.slim
 
+
 HEIGHT, WIDTH, CHANNEL = 256, 256, 1
 BATCH_SIZE = 64
-EPOCH = 60000
+EPOCH = 100000
 version = 'newSlab'
 newSlab_path = './' + version
 newDataClahe = './dataClahe'
@@ -33,42 +33,41 @@ def process_data():
     for each in os.listdir(slab_dir):
         images.append(os.path.join(slab_dir,each))
     # print images
-    with tf.device('/CPU:0'):
-        all_images = tf.convert_to_tensor(images, dtype = tf.string)
+    all_images = tf.convert_to_tensor(images, dtype = tf.string)
 
-        images_queue = tf.train.slice_input_producer(
+    images_queue = tf.train.slice_input_producer(
                                         [all_images])
-        content = tf.read_file(images_queue[0])
 
-        image = tf.image.decode_jpeg(content, channels = CHANNEL)
+    content = tf.read_file(images_queue[0])
+    image = tf.image.decode_jpeg(content, channels = CHANNEL)
     # sess1 = tf.Session()
     # print sess1.run(image)
-        image = tf.image.random_flip_left_right(image) ## why am i doing this here ?? dfa
-        image = tf.image.random_brightness(image, max_delta = 0.1)
-        image = tf.image.random_contrast(image, lower = 0.9, upper = 1.1)
+    image = tf.image.random_flip_left_right(image) ## why am i doing this here ?? dfa
+    image = tf.image.random_brightness(image, max_delta = 0.1)
+    image = tf.image.random_contrast(image, lower = 0.9, upper = 1.1)
     # noise = tf.Variable(tf.truncated_normal(shape = [HEIGHT,WIDTH,CHANNEL], dtype = tf.float32, stddev = 1e-3, name = 'noise'))
     # print image.get_shape()
-        size = [HEIGHT, WIDTH]
-        image = tf.image.resize_images(image, size)
-        image.set_shape([HEIGHT,WIDTH,CHANNEL])
+    size = [HEIGHT, WIDTH]
+    image = tf.image.resize_images(image, size)
+    image.set_shape([HEIGHT,WIDTH,CHANNEL])
     # image = image + noise
     # image = tf.transpose(image, perm=[2, 0, 1])
     # print image.get_shape()
 
-        image = tf.cast(image, tf.float32)
-        image = image / 255.0
+    image = tf.cast(image, tf.float32)
+    image = image / 255.0
 
-        iamges_batch = tf.train.shuffle_batch(
+    images_batch = tf.train.shuffle_batch(
                                     [image],
                                     batch_size = BATCH_SIZE,
                                     num_threads = 4,
-                                    capacity = 200 + 3*BATCH_SIZE,
-                                    min_after_dequeue = 20)
+                                    capacity = 300 + 3* BATCH_SIZE,
+                                    min_after_dequeue = 10)
     num_images = len(images)
 
-    ##print(num_images)
+    print(num_images)
 
-    return iamges_batch, num_images
+    return images_batch, num_images
 
 def generator(input, random_dim, is_train, reuse=False):
     c4, c8, c16, c32, c64, c128 = 512, 256, 128, 64, 32, 16 # channel num
@@ -136,7 +135,8 @@ def discriminator(input, is_train, reuse=False):
         if reuse:
             scope.reuse_variables()
         with tf.device('/gpu:0'):
-        #Convolution, activation, bias, repeat!
+
+            #Convolution, activation, bias, repeat!
             conv1 = tf.layers.conv2d(input, c2, kernel_size=[5, 5], strides=[2, 2], padding="SAME",
                                      kernel_initializer=tf.truncated_normal_initializer(stddev=0.02),
                                      name='conv1')
@@ -175,7 +175,7 @@ def discriminator(input, is_train, reuse=False):
             # wgan just get rid of the sigmoid
             logits = tf.add(tf.matmul(fc1, w2), b2, name='logits')
             # dcgan
-            acted_out = tf.nn.sigmoid(logits)
+            #acted_out = tf.nn.sigmoid(logits)
         return logits #, acted_out
 
 
@@ -209,23 +209,23 @@ def train():
     trainer_d = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(d_loss, var_list=d_vars)
     trainer_g = tf.train.RMSPropOptimizer(learning_rate=5e-5).minimize(g_loss, var_list=g_vars)
     # clip discriminator weights
-    d_clip = [v.assign(tf.clip_by_value(v, -0.01, 0.01)) for v in d_vars]
+    d_clip = [v.assign(tf.clip_by_value(v, -0.001, 0.001)) for v in d_vars]
 
 
     batch_size = BATCH_SIZE
     image_batch, samples_num = process_data()
 
     batch_num = int(samples_num / batch_size)
-    total_batch = 0
+    #total_batch = 0
     sess = tf.Session()
-
     saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
+
     # continue training
     save_path = saver.save(sess, "/tmp/model.ckpt")
     ckpt = tf.train.latest_checkpoint('./model/' + version)
-    saver.restore(sess, save_path)
+    saver.restore(sess, ckpt)
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
@@ -235,9 +235,14 @@ def train():
 
     start_time = time.time()
 
+    passDLoss = -1000
+    passGloss = 1000
+
     for i in range(EPOCH):
         epoch_time = time.time()
         text_file = open("Output.txt", "a+")
+        text_file_p = open("Performance.txt", "a+")
+
         print("Running epoch {}/{}...".format(i, EPOCH))
         for j in range(batch_num):
             print(j)
@@ -247,26 +252,32 @@ def train():
             train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
             for k in range(d_iters):
                 print(k)
-                #with tf.device('/gpu:1'):
                 train_image = sess.run(image_batch)
                 #wgan clip weights
-                #with tf.device('/gpu:0'):
                 sess.run(d_clip)
 
                 # Update the discriminator
-                #with tf.device('/gpu:1'):
                 _, dLoss = sess.run([trainer_d, d_loss],
                                     feed_dict={random_input: train_noise, real_image: train_image, is_train: True})
 
             # Update the generator
             for k in range(g_iters):
-                #with tf.device('/gpu:2'):
                 # train_noise = np.random.uniform(-1.0, 1.0, size=[batch_size, random_dim]).astype(np.float32)
                 _, gLoss = sess.run([trainer_g, g_loss],
                                     feed_dict={random_input: train_noise, is_train: True})
 
             print ('train:[%d/%d],d_loss:%f,g_loss:%f' % (i, j, dLoss, gLoss))
         print("--- EPOCH time : %s seconds ---" % (time.time() - epoch_time))
+
+        #save check point in the best trainig point
+        #if (dLoss > passDLoss) and ( dLoss< 0 ) and (gLoss < passGloss) and ( gLoss> 0 ):
+        if  (gLoss < passGloss) and ( gLoss> 0 ):
+            saver.save(sess, './model/' +version + '/' + str(i))
+            passDLoss = dLoss
+            passGloss = gLoss
+            print('g_loss:%f d_loss:%f @iteration:%d' % (dLoss,gLoss,i))
+            text_file_p.write('%d \t\t%f \t\t%f \n' % (i,dLoss,gLoss))
+            text_file_p.close()
 
 
         # save check point every 500 epoch
@@ -283,14 +294,12 @@ def train():
             # imgtest = imgtest * 255.0
             # imgtest.astype(np.uint8)
             save_images(imgtest, [8,8] ,newSlab_path + '/epoch' + str(i) + '.jpg')
+
         if i%10 == 0:
             print('train:[%d],d_loss:%f,g_loss:%f' % (i, dLoss, gLoss))
             print("--- total time : %s seconds ---" % (time.time() - start_time))
             text_file.write("%d \t\t%f \t\t%f \t\t%s \t\t%s \n" % (i, dLoss, gLoss, (time.time() - epoch_time),(time.time() - start_time)))
             text_file.close()
-
-
-
 
     #text_file.close()
     coord.request_stop()
@@ -323,33 +332,26 @@ def test():
 
 
 
-    save_images(imgtest, [8,8],newSlab_path + '/test1.jpg') #merge_images
-
-    imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
+    # save_images(imgtest, [7,7],newSlab_path + '/test1.jpg') #merge_images
+    #
+    # imsave_solo(imgtest[0], newSlab_path + '/test3.jpg') #imsave_solo images
 
     for k in range(batch_size):
         save_images_solo(imgtest[k], (newSlab_path + '/sol/longitudinalCrack%d.jpg') % k)
 
 
     #save_images(imgtest, [1,1],newSlab_path + '/test1.jpg')
-
-
 def utilClahe():
-    start_time = time.time()
     current_dir = os.getcwd()
     # parent = os.path.dirname(current_dir)
     slab_dir = os.path.join(current_dir, 'data')
     images = []
     count = 0
     for each in os.listdir(slab_dir):
-        iteration_time = time.time()
         images.append(os.path.join(slab_dir,each))
         count+=1
-        print("--- iteration time : %s seconds ---" % (time.time() - iteration_time))
     print(count)
-    print("--- total time : %s seconds ---" % (time.time() - start_time))
-
-##Used to equalize the images currently used
+    #Used to equalize the images currently used
     equ=None
     clahe = cv2.createCLAHE(clipLimit=10.0, tileGridSize=(8,8))
 
@@ -367,3 +369,4 @@ if __name__ == "__main__":
     train()
     #test()
     #utilClahe()
+    #restoreChkPoint()
