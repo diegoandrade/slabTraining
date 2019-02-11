@@ -279,6 +279,16 @@ def train():
             text_file_p.write('%d \t\t%f \t\t%f \n' % (i,dLoss,gLoss))
             text_file_p.close()
 
+        if (gloss < 0.3) and ( gloss > 0):
+            saver.save(sess, './model/' +version + '/' + str(i))
+            passDLoss = dLoss
+            passGloss = gLoss
+            print('g_loss:%f d_loss:%f @iteration:%d' % (dLoss,gLoss,i))
+            text_file_p.write('%d \t\t%f \t\t%f \n' % (i,dLoss,gLoss))
+            text_file_p.close()
+            break
+        
+
 
         # save check point every 500 epoch
         if i%100 == 0:
