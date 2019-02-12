@@ -17,7 +17,7 @@ To run the code just go to the root folder and run the following command using p
 python slabGANnGPU.py
 ```
 ### Real Image
-![](/figures/256img.pngs?raw=true)
+![](/figures/256img.png?raw=true)
 
 ### Fake Image
 ![](/figures/longitudinalCrack159.jpg?raw=true)
